@@ -11,10 +11,12 @@ create table "user" (
 	"id" bigserial primary key,
 	"username" varchar(64) constraint "unique_user_name" unique,
 	"password_hash" bytea,
-	"activity" bytea,
-	"effect" bytea,
+	"password_salt" bytea,
+	"votes" bytea,
+	"impact" bytea,
 	constraint "username_not_null" check (not ("username" is null)),
-	constraint "password_hash_not_null" check (not ("password_hash" is null))
+	constraint "password_hash_not_null" check (not ("password_hash" is null)),
+	constraint "password_salt_not_null" check (not ("password_salt" is null))
 );
 
 -- Person
@@ -26,10 +28,9 @@ create table "person" (
 	"name" varchar(256),
 	"context_id" bigint,
 	"score" bytea,
-	"activity" bytea,
+	"hits" bytea,
 	constraint "name_not_null" check (not ("name" is null)),
 	constraint "context_not_null" check (not ("context_id" is null)),
-	constraint "score_not_null" check (not ("score" is null)),
 	constraint "unique_person_name_context" unique ("name", "context_id")
 );
 
@@ -46,16 +47,20 @@ create table "context" (
 
 drop table if exists "score_inc" cascade;
 
+-- Score Inc
+
 create table "score_inc" (
 	"user_id" bigint,
 	"person_id" bigint,
 	"activity" bytea,
 	"delta" bytea,
+	"init_time" timestamp,
 	"range" interval,
 	constraint "user_id_not_null" check (not ("user_id" is null)),
 	constraint "person_id_not_null" check (not ("person_id" is null)),
 	constraint "activity_not_null" check (not ("activity" is null)),
 	constraint "delta_not_null" check (not ("delta" is null)),
+	constraint "init_time_not_null" check (not ("init_time" is null)),
 	constraint "range_not_null" check (not ("range" is null))
 );
 

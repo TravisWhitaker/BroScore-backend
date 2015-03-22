@@ -1,50 +1,77 @@
 module BroScore.Types where
 
+import Control.Monad
+
 import Control.Concurrent.MVar
+
+import Data.List
 
 import qualified Data.ByteString.Lazy.Char8 as B
 import qualified Data.Map                   as M
-import Data.Time.LocalTime
+
+import Data.Time.Clock
+
+import Data.Aeson
 
 import Database.HDBC
+import Database.HDBC.PostgreSQL
 
 data User = User {
-    id             :: Integer
-   ,userName       :: B.ByteString
-   ,ephemeralKey   :: B.ByteString
-   ,activity       :: Integer
-   ,effect         :: Integer
-   }
+    userId       :: Integer
+   ,userName     :: B.ByteString
+   ,ephemeralKey :: Maybe B.ByteString
+   ,votes        :: Integer
+   ,impact       :: Integer
+   } deriving (Show)
 
 data Person = Person {
-    id       :: Integer
+    personId :: Integer
    ,name     :: B.ByteString
    ,score    :: Integer
-   ,activity :: Integer
-   ,events   :: M.Map B.ByteString ScoreInc
+   ,hits     :: Integer
+   ,events   :: M.Map B.ByteString (MVar ScoreInc)
    }
+
+instance Show Person where
+    show (Person pid n s i _) = "Person { " ++ (intercalate ", " [show pid, show n, show s, show i]) ++ "}"
 
 data Context = Context {
-    id          :: Integer
-   ,name        :: B.ByteString
+    contextId   :: Integer
+   ,contextName :: B.ByteString
    ,description :: B.ByteString
-   }
+   } deriving (Show)
 
 data ScoreInc = ScoreInc {
-    user     :: User
+    user     :: Integer
    ,activity :: Integer
-   ,effect   :: Integer
-   ,initTime :: LocalTime
-   }
+   ,delta    :: Integer
+   ,initTime :: UTCTime
+   } deriving (Show)
 
 data BroState = BroState {
-    broconn     :: IConnection conn => conn
-   ,mkUser      :: Statement
-   ,mkPerson    :: Statement
-   ,mkContext   :: Statement
-   ,mkScoreInc  :: Statement
-   ,brousers    :: M.Map B.ByteString User
-   ,brocontexts :: M.Map B.ByteString (Context, M.Map B.ByteString Person)
+    broconn         :: Connection
+   ,mkUserS         :: Statement
+   ,mkPersonS       :: Statement
+   ,mkContextS      :: Statement
+   ,mkScoreIncS     :: Statement
+   ,updateUserS     :: Statement
+   ,updatePersonS   :: Statement
+   ,checkPasswordS  :: Statement
+   ,updatePasswordS :: Statement
+   ,brousers        :: MVar (M.Map B.ByteString (MVar User))
+   ,brocontexts     :: MVar (M.Map B.ByteString (MVar (Context, M.Map B.ByteString (MVar Person))))
    }
 
-newtype Bro = Bro {unBro :: MVar BroState}
+-- These functions are for testing purposes only:
+
+pureBro :: (BroState -> MVar a) -> (a -> b) -> (BroState -> IO b)
+pureBro = flip ((.) . fmap) . (readMVar .)
+
+numUsers = pureBro brousers M.size
+lstUsers = (mapM (liftM show . readMVar) =<<) . pureBro brousers (map snd . M.toList)
+
+numContexts = pureBro brocontexts M.size
+lstContexts = (mapM (liftM fst . readMVar) =<<) . pureBro brocontexts (map snd . M.toList)
+
+numPeople = liftM length . lstPeople
+lstPeople = (mapM readMVar =<<) . (liftM concat . mapM (liftM ((map snd . M.toList) . snd) . readMVar) =<<) . pureBro brocontexts (map snd . M.toList)
