@@ -38,6 +38,13 @@ getUser bs un k = readMVar (brousers bs) >>= checkExists . M.lookup un
                                                                                     Just k' -> if k == k' then return $ Right u'
                                                                                                           else return $ Left status403)
 
+checkAuth :: BroState -> B.ByteString -> B.ByteString -> IO (Maybe Status)
+checkAuth bs un k = readMVar (brousers bs) >>= checkExists . M.lookup un
+    where checkExists Nothing = return $ Just status404
+          checkExists (Just um) = readMVar um >>= (\u' -> case (ephemeralKey u') of Nothing -> return $ Just status401
+                                                                                    Just k' -> if k == k' then return $ Nothing
+                                                                                                          else return $ Just status403)
+
 vote :: BroState -> B.ByteString -> B.ByteString -> B.ByteString -> B.ByteString -> Integer -> IO (Maybe Status)
 vote s u k c p v = readMVar (brousers s) >>= checkUserExists . M.lookup u
     where checkUserExists Nothing = return $ Just status404

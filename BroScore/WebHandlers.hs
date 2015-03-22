@@ -48,6 +48,13 @@ instance ToJSON User where
 
 type BroAction = BroState -> ActionM ()
 
+authAction :: BroState -> BroAction -> ActionM ()
+authAction bs ba = do
+    un <- param "username"
+    pw <- param "passowrd"
+    liftIO (checkAuth bs un pw) >>= \case Just s -> status s
+                                          Nothing -> ba bs
+
 mkUserHandler :: BroAction
 mkUserHandler bs = do
     un <- param "username"
